@@ -1,8 +1,13 @@
+import numpy as np
+
+# class odom_save:
+    # def __init__(self)
+
 def update_Odometry(Odom):
 
-    
+
     position = Odom.pose.pose.position
-    
+
     #Orientation uses the quaternion aprametrization.
     #To get the angular position along the z-axis, the following equation is required.
     q = Odom.pose.pose.orientation
@@ -13,17 +18,17 @@ def update_Odometry(Odom):
         self.Init = False
         self.Init_ang = orientation
         self.globalAng = self.Init_ang
-        Mrot = np.matrix([[np.cos(Init_ang), np.sin(Init_ang)],[-np.sin(Init_ang), np.cos(Init_ang)]])        
+        Mrot = np.matrix([[np.cos(Init_ang), np.sin(Init_ang)],[-np.sin(Init_ang), np.cos(Init_ang)]])
         self.Init_pos.x = Mrot.item((0,0))*position.x + Mrot.item((0,1))*position.y
         self.Init_pos.y = Mrot.item((1,0))*position.x + Mrot.item((1,1))*position.y
         self.Init_pos.z = position.z
 
-    Mrot = np.matrix([[np.cos(self.Init_ang), np.sin(self.Init_ang)],[-np.sin(self.Init_ang), np.cos(self.Init_ang)]])        
+    Mrot = np.matrix([[np.cos(self.Init_ang), np.sin(self.Init_ang)],[-np.sin(self.Init_ang), np.cos(self.Init_ang)]])
 
     #We subtract the initial values
     self.globalPos.x = Mrot.item((0,0))*position.x + Mrot.item((0,1))*position.y - self.Init_pos.x
     self.globalPos.y = Mrot.item((1,0))*position.x + Mrot.item((1,1))*position.y - self.Init_pos.y
     self.globalAng = orientation - self.Init_ang
-    
-    
-    
+
+
+

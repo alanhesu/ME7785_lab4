@@ -3,11 +3,13 @@ import rospy
 import smach
 import smach_ros
 import numpy as np
+from std_msgs.msg import Empty
 from geometry_msgs.msg import Twist, Point, Quaternion
 from nav_msgs.msg import Odometry
 import threading
 # import pid_controller
 from pid_controller import pid_controller
+from Rotation_Script import update_Odometry
 
 waypoints = np.array([[1.5, 0], \
                     [1.5, 1.4], \
@@ -28,6 +30,12 @@ def zero_vel():
     vel_msg.angular.x = 0
     vel_msg.angular.y = 0
     vel_msg.angular.z = 0
+
+def reset_odom():
+    reset_odom = rospy.Publisher('/mobile_base/commands/reset_odometry', Empty, queue_size=10)
+    time_beg = rospy.get_time()
+    while rospy.get_time() - time_beg < 0.5:
+        reset_odom.publish(Empty())
 
 def callback_killvel():
     global vel_pub
@@ -99,6 +107,10 @@ def main():
     vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=5)
     odom_sub = rospy.Subscriber("/odom", Odometry, callback_odom)
     rate = rospy.Rate(20)
+
+    # reset odometry
+    #@TODO: test?
+    reset_odom()
 
     # construct state machine
     sm = smach.StateMachine(outcomes=['finish'])
