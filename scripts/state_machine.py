@@ -6,15 +6,16 @@ import numpy as np
 from std_msgs.msg import Empty
 from geometry_msgs.msg import Twist, Point, Quaternion
 from nav_msgs.msg import Odometry
+from greenbutter_navigate_to_goal.msg import ObjDetect
 import threading
 # import pid_controller
 from pid_controller import pid_controller
 from Rotation_Script import update_Odometry
 
-# waypoints = np.array([[1.5, 0], \
-                    # [1.5, 1.4], \
-                    # [0.0, 1.4]])
-waypoints = np.array([[1.5, 0], [1.5, 1.5]])
+waypoints = np.array([[1.5, 0], \
+                    [1.5, 1.4], \
+                    [0.0, 1.4]])
+# waypoints = np.array([[1.5, 0], [1.5, 1.5]])
 
 vel_msg = Twist()
 glob_position = Point()
@@ -64,9 +65,13 @@ def callback_odom(data):
     glob_position = data.pose.pose.position
     glob_theta = quat2euler(data.pose.pose.orientation)
 
+def callback_detect(data):
+    global obj_detect
+    obj_detect = data
+
 class go_to_goal(smach.State):
     def __init__(self):
-        smach.State.__init__(self, outcomes=['follow', 'avoid', 'stop', 'finish'])
+        smach.State.__init__(self, outcomes=['follow', 'avoid', 'stop', 'finish', 'pause'])
         self.dist_thresh = .05
 
     def execute(self, userdata):
@@ -76,7 +81,9 @@ class go_to_goal(smach.State):
         print('state go_to_goal {}'.format(waypoints[curgoal,:]))
         #@TODO: implement go to waypoints
 
-        self.go_waypoint(waypoints[curgoal,:], vel_pub, rate)
+        res = self.go_waypoint(waypoints[curgoal,:], vel_pub, rate)
+        if (res == 'detected'):
+            return 'pause'
         # reached a waypoint - stop and increment to next waypoint or finish
         curgoal += 1
         if (curgoal >= len(waypoints[:,0])):
@@ -88,8 +95,9 @@ class go_to_goal(smach.State):
         global glob_position
         global glob_theta
         global vel_msg
-        vel_pid = pid_controller(.3, .05, .0, umax=0.2, max_cmd=0.2)
-        angle_pid = pid_controller(.3, 0.002, .1, debug=1)
+        global obj_detect
+        vel_pid = pid_controller(.3, .05, .0, umax=0.1, max_cmd=0.1)
+        angle_pid = pid_controller(.75, 0.002, .1, debug=1)
         e_dist = get_dist(wp, [glob_position.x, glob_position.y])
 
         # get angle error
@@ -119,9 +127,12 @@ class go_to_goal(smach.State):
 
             #@TODO: implement angle control
             #@TODO: return early if object detected
-            vel_msg.linear.x = 0.0
+            vel_msg.linear.x = vel_cmd
             vel_msg.angular.z = angle_cmd
             vel_pub.publish(vel_msg)
+
+            if (obj_detect.cone_detected):
+                return 'detected'
 
 class stop(smach.State):
     def __init__(self):
@@ -139,14 +150,28 @@ class stop(smach.State):
             rate.sleep()
         return 'go'
 
+class pause(smach.State):
+    def __init__(self):
+        smach.State.__init__(self, outcomes=['go', 'follow', 'avoid'])
+
+    def execute(self, userdata):
+        global rate
+        global obj_detect
+        while (obj_detect.cone_detected):
+            rate.sleep()
+        return 'go'
+
 def main():
     global rate
     global vel_pub
     global vel_msg
+    global obj_detect
 
+    obj_detect = ObjDetect()
     rospy.init_node('state_machine', anonymous=True)
     vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=5)
     odom_sub = rospy.Subscriber("/odom", Odometry, callback_odom)
+    obj_sub = rospy.Subscriber("/detected_obj", ObjDetect, callback_detect)
     rate = rospy.Rate(20)
 
     # reset odometry
@@ -157,8 +182,9 @@ def main():
     sm = smach.StateMachine(outcomes=['finish'])
 
     with sm:
-        smach.StateMachine.add('go_to_goal', go_to_goal(), transitions={'follow':'stop', 'avoid':'stop', 'stop':'stop'})
+        smach.StateMachine.add('go_to_goal', go_to_goal(), transitions={'follow':'stop', 'avoid':'stop', 'stop':'stop', 'pause':'pause'})
         smach.StateMachine.add('stop', stop(), transitions={'go':'go_to_goal'})
+        smach.StateMachine.add('pause', stop(), transitions={'go':'go_to_goal'})
 
 
     # introspection server
