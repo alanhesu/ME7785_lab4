@@ -2,7 +2,7 @@ import rospy
 import numpy as np
 
 class pid_controller:
-    def __init__(self, kp, ki, kd, umax=np.inf, debug=0):
+    def __init__(self, kp, ki, kd, umax=np.inf, max_cmd=np.inf, debug=0):
         self.kp = kp
         self.ki = ki
         self.kd = kd
@@ -10,6 +10,7 @@ class pid_controller:
         self.e_old = 0.0
         self.t_old = rospy.get_time()
         self.umax = umax
+        self.max_cmd = max_cmd
         self.debug = debug
 
     def get_response(self, e):
@@ -27,9 +28,14 @@ class pid_controller:
         if (rval > self.umax):
             self.accum -= e*dt
 
+        rval = min(rval, self.max_cmd)
+
         self.t_old = t
         self.e_old = e
         return rval
+
+    def set_kp(self, kp):
+        self.kp = kp
 
     def reset_t_old(self):
         self.t_old = rospy.get_time()
