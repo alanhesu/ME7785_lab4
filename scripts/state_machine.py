@@ -177,7 +177,7 @@ class follow(smach.State):
     def execute(self, userdata):
         global rate
         self.direct = userdata.follow_direct
-        print('direct = {}'.format(self.direct))
+        # print('direct = {}'.format(self.direct))
         #@TODO:
         res = self.follow_wall(waypoints[curgoal,:], vel_pub, rate)
         if (res == 'exit'):
@@ -199,8 +199,11 @@ class follow(smach.State):
                 return 'exit'
 
     def get_angle_error(self):
+        angle_bounds = np.pi/4
+        dist_adjust = (1 - obj_detect.d1/0.4)*angle_bounds
         angle_obj = obj_detect.th1
-        angle_goal = angle_obj + np.sign(self.direct)*np.pi/2
+        angle_goal = angle_obj + np.sign(self.direct)*(np.pi/3 + dist_adjust)
+        # print(dist_adjust, obj_detect.d1)
         angle_goal = wrap_angle(angle_goal)
 
         e_angle = angle_goal
@@ -213,8 +216,8 @@ class follow(smach.State):
         angle_wp = np.arctan2(dy, dx)
         angle_obj += glob_theta
         angle_obj = wrap_angle(angle_obj)
-        print(angle_obj, angle_wp, np.abs(angle_wp - angle_obj))
-        return np.abs(angle_wp - angle_obj) > np.pi/2
+        # print(angle_obj, angle_wp, np.abs(angle_wp - angle_obj))
+        return np.abs(angle_wp - angle_obj) > np.pi/3
 
 def main():
     global rate
