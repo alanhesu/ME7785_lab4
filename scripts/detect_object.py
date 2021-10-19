@@ -23,6 +23,22 @@ def laser_callback(data):
 
     min_dist = min(ranges)
     min_th_ind = ranges.index(min_dist)
+
+
+    # Averaging LIDAR values
+    if min_dist != np.inf:
+        min_dist_arr = list(np.zeros(9))
+        o = 0
+
+        for i in range(min_th_ind-4,min_th_ind+5):
+            if i > 359:
+                i-= 360
+            min_dist_arr[o] = ranges[i]
+            o+=1
+
+        min_dist_arr = [x for x in min_dist_arr if x !=np.inf]
+        min_dist = np.mean(min_dist_arr)
+
     if (min_dist < 0.4):
         if (min_th_ind >= ind_min or min_th_ind <= ind_max):
             obj_msg.cone_detected = True
