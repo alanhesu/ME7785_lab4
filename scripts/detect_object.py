@@ -6,8 +6,8 @@ import numpy as np
 from sensor_msgs.msg import LaserScan
 
 def laser_callback(data):
-    thmin = 2*np.pi - .5
-    thmax = .5
+    thmin = 2*np.pi - np.pi/2
+    thmax = np.pi/2
     dist_thresh = 0.4
     obj_msg = ObjDetect()
 
@@ -30,12 +30,12 @@ def laser_callback(data):
             obj_msg.cone_detected = False
 
         obj_msg.obj_detected = True
-        obj_msg.th1 = min_th_ind*increment
-        if (obj_msg.th1 > np.pi):
-            obj_msg.th1 -= 2*np.pi
     else:
         obj_msg.obj_detected = False
     obj_msg.d1 = min_dist
+    obj_msg.th1 = min_th_ind*increment
+    if (obj_msg.th1 > np.pi):
+        obj_msg.th1 -= 2*np.pi
     obj_pub.publish(obj_msg)
 
 def find_object():

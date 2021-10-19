@@ -1,0 +1,4 @@
+<launch>
+  <node name="detect_object" pkg="greenbutter_navigate_to_goal" type="detect_object.py" output="screen" />
+  <node name="state_machine" pkg="greenbutter_navigate_to_goal" type="state_machine.py" output="screen" />
+</launch>

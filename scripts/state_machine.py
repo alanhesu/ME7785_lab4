@@ -14,7 +14,8 @@ from Rotation_Script import update_Odometry
 
 waypoints = np.array([[1.5, 0], \
                     [1.5, 1.4], \
-                    [0.0, 1.4]])
+                    [0.0, 1.4], \
+                    [0.0, 0.0]])
 # waypoints = np.array([[1.5, 0], [1.5, 1.5]])
 
 vel_msg = Twist()
@@ -27,6 +28,13 @@ def get_dist(p1, p2):
 
 def quat2euler(q):
     return np.arctan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z))
+
+def wrap_angle(theta):
+    if (theta > np.pi):
+        theta -= 2*np.pi
+    if (theta < -np.pi):
+        theta += 2*np.pi
+    return theta
 
 def zero_vel():
     global vel_msg
@@ -71,7 +79,7 @@ def callback_detect(data):
 
 class go_to_goal(smach.State):
     def __init__(self):
-        smach.State.__init__(self, outcomes=['follow', 'avoid', 'stop', 'finish', 'pause'])
+        smach.State.__init__(self, outcomes=['follow', 'avoid', 'stop', 'finish'], output_keys=['follow_direct'])
         self.dist_thresh = .05
 
     def execute(self, userdata):
@@ -83,7 +91,8 @@ class go_to_goal(smach.State):
 
         res = self.go_waypoint(waypoints[curgoal,:], vel_pub, rate)
         if (res == 'detected'):
-            return 'pause'
+            userdata.follow_direct = 1
+            return 'follow'
         # reached a waypoint - stop and increment to next waypoint or finish
         curgoal += 1
         if (curgoal >= len(waypoints[:,0])):
@@ -97,7 +106,7 @@ class go_to_goal(smach.State):
         global vel_msg
         global obj_detect
         vel_pid = pid_controller(.3, .05, .0, umax=0.1, max_cmd=0.1)
-        angle_pid = pid_controller(.75, 0.002, .1, debug=1)
+        angle_pid = pid_controller(.75, 0.002, .1)
         e_dist = get_dist(wp, [glob_position.x, glob_position.y])
 
         # get angle error
@@ -118,7 +127,7 @@ class go_to_goal(smach.State):
             dy = wp[1] - glob_position.y
             theta_wp = np.arctan2(dy, dx)
             e_angle = theta_diff(glob_theta, theta_wp)
-            print('{}, {}, {}'.format(theta_wp, glob_theta, e_angle))
+            # print('{}, {}, {}'.format(theta_wp, glob_theta, e_angle))
             # if (e_dist < 0.5):
                 # angle_pid.set_kp(min(4, e_dist*0.3))
             # else:
@@ -150,16 +159,62 @@ class stop(smach.State):
             rate.sleep()
         return 'go'
 
-class pause(smach.State):
+# class pause(smach.State):
+    # def __init__(self):
+        # smach.State.__init__(self, outcomes=['go', 'follow', 'avoid'])
+
+    # def execute(self, userdata):
+        # global rate
+        # global obj_detect
+        # while (obj_detect.cone_detected):
+            # rate.sleep()
+        # return 'go'
+
+class follow(smach.State):
     def __init__(self):
-        smach.State.__init__(self, outcomes=['go', 'follow', 'avoid'])
+        smach.State.__init__(self, outcomes=['go', 'avoid'], input_keys=['follow_direct'])
 
     def execute(self, userdata):
         global rate
-        global obj_detect
-        while (obj_detect.cone_detected):
+        self.direct = userdata.follow_direct
+        print('direct = {}'.format(self.direct))
+        #@TODO:
+        res = self.follow_wall(waypoints[curgoal,:], vel_pub, rate)
+        if (res == 'exit'):
+            return 'go'
+
+    def follow_wall(self, wp, vel_pub, rate):
+        global vel_msg
+        angle_pid = pid_controller(1.0, 0, .1)
+
+        vel_msg.linear.x = 0.05
+        while (True):
             rate.sleep()
-        return 'go'
+
+            e_angle = self.get_angle_error()
+            angle_cmd = angle_pid.get_response(e_angle)
+            vel_msg.angular.z = angle_cmd
+            vel_pub.publish(vel_msg)
+            if self.exit_follow(wp):
+                return 'exit'
+
+    def get_angle_error(self):
+        angle_obj = obj_detect.th1
+        angle_goal = angle_obj + np.sign(self.direct)*np.pi/2
+        angle_goal = wrap_angle(angle_goal)
+
+        e_angle = angle_goal
+        return e_angle
+
+    def exit_follow(self, wp):
+        angle_obj = obj_detect.th1
+        dx = wp[0] - glob_position.x
+        dy = wp[1] - glob_position.y
+        angle_wp = np.arctan2(dy, dx)
+        angle_obj += glob_theta
+        angle_obj = wrap_angle(angle_obj)
+        print(angle_obj, angle_wp, np.abs(angle_wp - angle_obj))
+        return np.abs(angle_wp - angle_obj) > np.pi/2
 
 def main():
     global rate
@@ -180,11 +235,13 @@ def main():
 
     # construct state machine
     sm = smach.StateMachine(outcomes=['finish'])
+    sm.userdata.follow_direct = 0
 
     with sm:
-        smach.StateMachine.add('go_to_goal', go_to_goal(), transitions={'follow':'stop', 'avoid':'stop', 'stop':'stop', 'pause':'pause'})
+        smach.StateMachine.add('go_to_goal', go_to_goal(), transitions={'follow':'follow', 'avoid':'stop', 'stop':'stop'}, remapping={'follow_direct':'follow_direct'})
         smach.StateMachine.add('stop', stop(), transitions={'go':'go_to_goal'})
-        smach.StateMachine.add('pause', stop(), transitions={'go':'go_to_goal'})
+        # smach.StateMachine.add('pause', pause(), transitions={'go':'go_to_goal'})
+        smach.StateMachine.add('follow', follow(), transitions={'go':'go_to_goal', 'avoid':'go_to_goal'}, remapping={'follow_direct':'follow_direct'})
 
 
     # introspection server
