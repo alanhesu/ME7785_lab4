@@ -12,10 +12,9 @@ import threading
 from pid_controller import pid_controller
 from Rotation_Script import update_Odometry
 
-waypoints = np.array([[1.5, 0], \
-                    [1.5, 1.4], \
-                    [0.0, 1.4], \
-                    [0.0, 0.0]])
+waypoints = np.array([[1.55, 0], \
+                    [1.5, 1.5], \
+                    [0.0, 1.5]])
 # waypoints = np.array([[1.5, 0], [1.5, 1.5]])
 
 vel_msg = Twist()
@@ -80,7 +79,7 @@ def callback_detect(data):
 class go_to_goal(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['follow', 'avoid', 'stop', 'finish'], output_keys=['follow_direct'])
-        self.dist_thresh = .05
+        self.dist_thresh = .02
 
     def execute(self, userdata):
         global curgoal
@@ -91,7 +90,19 @@ class go_to_goal(smach.State):
 
         res = self.go_waypoint(waypoints[curgoal,:], vel_pub, rate)
         if (res == 'detected'):
-            userdata.follow_direct = 1
+            obj_angle = obj_detect.th1
+            wp = waypoints[curgoal,:]
+
+            dx = wp[0] - glob_position.x
+            dy = wp[1] - glob_position.y
+            theta_wp = np.arctan2(dy, dx)
+            obj_angle += glob_theta
+            angle_diff = obj_angle - theta_wp
+            angle_diff = wrap_angle(angle_diff)
+            if (angle_diff >= 0):
+                userdata.follow_direct = -1
+            else:
+                userdata.follow_direct = 1
             return 'follow'
         # reached a waypoint - stop and increment to next waypoint or finish
         curgoal += 1
@@ -102,11 +113,10 @@ class go_to_goal(smach.State):
 
     def go_waypoint(self, wp, vel_pub, rate):
         global glob_position
-        global glob_theta
         global vel_msg
         global obj_detect
         vel_pid = pid_controller(.3, .05, .0, umax=0.1, max_cmd=0.1)
-        angle_pid = pid_controller(.75, 0.002, .1)
+        angle_pid = pid_controller(.75, 0.002, .0)
         e_dist = get_dist(wp, [glob_position.x, glob_position.y])
 
         # get angle error
@@ -185,7 +195,7 @@ class follow(smach.State):
 
     def follow_wall(self, wp, vel_pub, rate):
         global vel_msg
-        angle_pid = pid_controller(1.0, 0, .1)
+        angle_pid = pid_controller(1.0, 0, .0)
 
         vel_msg.linear.x = 0.05
         while (True):
@@ -217,13 +227,17 @@ class follow(smach.State):
         angle_obj += glob_theta
         angle_obj = wrap_angle(angle_obj)
         # print(angle_obj, angle_wp, np.abs(angle_wp - angle_obj))
-        return np.abs(angle_wp - angle_obj) > np.pi/3 or obj_detect.d1 > .5
+        if np.abs(angle_wp - angle_obj) > np.pi/3 or obj_detect.d1 > .6:
+            print(np.abs(angle_wp - angle_obj) > np.pi/3, obj_detect.d1 > .6)
+        return np.abs(angle_wp - angle_obj) > np.pi/3 or obj_detect.d1 > .6
 
 def main():
     global rate
     global vel_pub
     global vel_msg
     global obj_detect
+    global glob_theta
+    glob_theta = 0
 
     obj_detect = ObjDetect()
     rospy.init_node('state_machine', anonymous=True)
