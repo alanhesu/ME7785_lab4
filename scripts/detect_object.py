@@ -37,7 +37,7 @@ def laser_callback(data):
             o+=1
 
         min_dist_arr = [x for x in min_dist_arr if x !=np.inf]
-        min_dist = np.mean(min_dist_arr)
+        min_dist = np.median(min_dist_arr)
 
     if (min_dist < 0.4):
         if (min_th_ind >= ind_min or min_th_ind <= ind_max):

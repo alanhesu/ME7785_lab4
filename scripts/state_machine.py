@@ -155,7 +155,7 @@ class stop(smach.State):
         # wait for 10 seconds to elapse
         t_beg = rospy.get_time()
         vel_pub.publish(zero_vel())
-        while rospy.get_time() - t_beg < 2:
+        while rospy.get_time() - t_beg < 10:
             rate.sleep()
         return 'go'
 
@@ -217,7 +217,7 @@ class follow(smach.State):
         angle_obj += glob_theta
         angle_obj = wrap_angle(angle_obj)
         # print(angle_obj, angle_wp, np.abs(angle_wp - angle_obj))
-        return np.abs(angle_wp - angle_obj) > np.pi/3
+        return np.abs(angle_wp - angle_obj) > np.pi/3 or obj_detect.d1 > .5
 
 def main():
     global rate
