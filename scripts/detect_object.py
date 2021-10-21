@@ -6,8 +6,8 @@ import numpy as np
 from sensor_msgs.msg import LaserScan
 
 def laser_callback(data):
-    thmin = 2*np.pi - np.pi/2
-    thmax = np.pi/2
+    thmin = 2*np.pi - np.pi/1.9
+    thmax = np.pi/1.9
     dist_thresh = 0.4
     obj_msg = ObjDetect()
 

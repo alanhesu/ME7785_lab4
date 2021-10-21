@@ -210,7 +210,7 @@ class follow(smach.State):
 
     def get_angle_error(self):
         angle_bounds = np.pi/4
-        dist_adjust = (1 - obj_detect.d1/0.4)*angle_bounds
+        dist_adjust = (1 - obj_detect.d1/0.5)*angle_bounds
         angle_obj = obj_detect.th1
         angle_goal = angle_obj + np.sign(self.direct)*(np.pi/3 + dist_adjust)
         # print(dist_adjust, obj_detect.d1)
@@ -227,9 +227,11 @@ class follow(smach.State):
         angle_obj += glob_theta
         angle_obj = wrap_angle(angle_obj)
         # print(angle_obj, angle_wp, np.abs(angle_wp - angle_obj))
-        if np.abs(angle_wp - angle_obj) > np.pi/3 or obj_detect.d1 > .6:
-            print(np.abs(angle_wp - angle_obj) > np.pi/3, obj_detect.d1 > .6)
-        return np.abs(angle_wp - angle_obj) > np.pi/3 or obj_detect.d1 > .6
+        if np.abs(wrap_angle(angle_wp - angle_obj)) > np.pi/3 or obj_detect.d1 > .6:
+            print((np.abs(wrap_angle(angle_wp - angle_obj)) > np.pi/3) , (obj_detect.d1 > .6) , (not obj_detect.cone_detected))
+            print(angle_wp, angle_obj)
+        return (np.abs(wrap_angle(angle_wp - angle_obj)) > np.pi/3) or ( obj_detect.d1 > .6 and not obj_detect.cone_detected)
+        # return (np.abs(angle_wp - angle_obj) > np.pi/3 or obj_detect.d1 > .6) and not obj_detect.cone_detected
 
 def main():
     global rate
